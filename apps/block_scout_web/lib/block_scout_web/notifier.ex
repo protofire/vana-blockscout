@@ -121,8 +121,6 @@ defmodule BlockScoutWeb.Notifier do
   def handle_event({:chain_event, :blocks, :realtime, blocks}) do
     last_broadcasted_block_number = Helper.fetch_from_ets_cache(:number, :last_broadcasted_block, 0)
 
-    Logger.info("new block indexed")
-
     blocks
     |> Enum.sort_by(& &1.number, :asc)
     |> Enum.each(fn block ->
@@ -372,17 +370,13 @@ defmodule BlockScoutWeb.Notifier do
       last_broadcasted_block_number == 0 ||
         last_broadcasted_block_number == BlockNumberHelper.previous_block_number(block.number) ||
           last_broadcasted_block_number < block.number - 4 ->
-        Logger.info("broadcast and store last block number")
         broadcast_block(block)
         :ets.insert(:last_broadcasted_block, {:number, block.number})
 
       last_broadcasted_block_number > BlockNumberHelper.previous_block_number(block.number) ->
-        Logger.info("broadcast last block")
         broadcast_block(block)
 
       true ->
-        Logger.info("starting broadcast")
-
         Task.start_link(fn ->
           schedule_broadcasting(block)
         end)
@@ -438,8 +432,6 @@ defmodule BlockScoutWeb.Notifier do
         block: preloaded_block,
         average_block_time: average_block_time
       })
-
-    Logger.info("new block broadcasted: (#{inspect(preloaded_block.number)}) - #{preloaded_block.hash}")
 
     r
   end
