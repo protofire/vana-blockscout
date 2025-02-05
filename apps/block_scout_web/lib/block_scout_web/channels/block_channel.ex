@@ -13,10 +13,26 @@ defmodule BlockScoutWeb.BlockChannel do
   intercept(["new_block"])
 
   def join("blocks:new_block", _params, socket) do
+    require Logger
+    Logger.info("====================================")
+    Logger.info("====================================")
+    Logger.info("====================================")
+    Logger.info("JOINED new_block channel")
+    Logger.info("====================================")
+    Logger.info("====================================")
+    Logger.info("====================================")
     {:ok, %{}, socket}
   end
 
   def join("blocks:" <> _miner_address, _params, socket) do
+    require Logger
+    Logger.info("====================================")
+    Logger.info("====================================")
+    Logger.info("====================================")
+    Logger.info("JOINED blocks:* channel")
+    Logger.info("====================================")
+    Logger.info("====================================")
+    Logger.info("====================================")
     {:ok, %{}, socket}
   end
 
