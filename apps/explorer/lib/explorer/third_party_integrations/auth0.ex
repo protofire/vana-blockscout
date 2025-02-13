@@ -764,6 +764,14 @@ defmodule Explorer.ThirdPartyIntegrations.Auth0 do
     end
   end
 
+  # Bypass the link if primary and secondary id are the same
+  defp link_users("email|" <> identity_id = primary_user_id, secondary_identity_id, provider) do
+    case identity_id == secondary_identity_id do
+      true -> :ok
+      _ -> link_users(primary_user_id, secondary_identity_id, provider)
+    end
+  end
+
   defp link_users(primary_user_id, secondary_identity_id, provider) do
     with token when is_binary(token) <- get_m2m_jwt(),
          client = OAuth.client(token: token),
