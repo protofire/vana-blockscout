@@ -201,6 +201,14 @@ defmodule BlockScoutWeb.Plug.RedisCookie do
       "EX",
       Application.get_env(:block_scout_web, :session_cookie_ttl)
     ])
+    |> case do
+      {:error, %Redix.ConnectionError{reason: reason}} ->
+        Logger.warning("Redis connection error with reason: #{inspect(reason)}")
+        {nil, %{}}
+
+      response ->
+        response
+    end
 
     cookie
   end
@@ -218,6 +226,10 @@ defmodule BlockScoutWeb.Plug.RedisCookie do
     case Redix.command(:redix, ["GET", key]) do
       {:ok, one} when one in [1, "1"] ->
         {hash, session}
+
+      {:error, %Redix.ConnectionError{reason: reason}} ->
+        Logger.warning("Redis connection error with reason: #{inspect(reason)}")
+        {nil, %{}}
 
       _ ->
         {nil, %{}}

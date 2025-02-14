@@ -265,6 +265,15 @@ defmodule BlockScoutWeb.Account.API.V2.AuthenticateController do
       |> delete_resp_cookie(Application.get_env(:block_scout_web, :invalid_session_key))
       |> put_status(200)
       |> put_view(UserView)
+      # Quick fix to correctly set up cookies in browser
+      |> put_resp_header(
+        "access-control-allow-origin",
+        if Mix.env() == :dev do
+          "blockscout.local"
+        else
+          "bs-vana.protofire.io"
+        end
+      )
       |> render(:user_info, %{identity: identity |> Identity.put_session_info(session)})
     end
   end
