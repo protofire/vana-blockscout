@@ -1,4 +1,4 @@
-defmodule Explorer.Repo.Migrations.InsertSmartContracts do
+defmodule Explorer.Repo.Migrations.InsertSmartContracts2 do
   use Ecto.Migration
   alias Explorer.Chain.SmartContract
   alias Explorer.Repo
@@ -24,29 +24,36 @@ defmodule Explorer.Repo.Migrations.InsertSmartContracts do
 
     changes = %{
       name: row["name"],
+      address_hash: row["address_hash"],
       compiler_version: row["compiler_version"],
-      optimization: row["optimization"],
+      optimization: row["optimization"] == "TRUE",
+      optimization_runs: String.to_integer(row["optimization_runs"]),
       contract_source_code: row["contract_source_code"],
       constructor_arguments: row["constructor_arguments"],
       evm_version: row["evm_version"],
-      abi: row["abi"],
-      verified_via_sourcify: row["verified_via_sourcify"],
-      verified_via_eth_bytecode_db: row["verified_via_eth_bytecode_db"],
-      verified_via_verifier_alliance: row["verified_via_verifier_alliance"],
-      partially_verified: row["partially_verified"],
+      abi: Jason.decode!(row["abi"]),
+      verified_via_sourcify: row["verified_via_sourcify"] == "TRUE",
+      verified_via_eth_bytecode_db: row["verified_via_eth_bytecode_db"] == "TRUE",
+      verified_via_verifier_alliance: row["verified_via_verifier_alliance"] == "TRUE",
+      partially_verified: row["partially_verified"] == "TRUE",
       file_path: row["file_path"],
-      is_vyper_contract: row["is_vyper_contract"],
-      is_changed_bytecode: row["is_changed_bytecode"],
+      is_vyper_contract: row["is_vyper_contract"] == "TRUE",
+      is_changed_bytecode: row["is_changed_bytecode"] == "TRUE",
       bytecode_checked_at: row["bytecode_checked_at"],
       contract_code_md5: row["contract_code_md5"],
-      compiler_settings: row["compiler_settings"],
+      compiler_settings: Jason.decode!(row["compiler_settings"]),
       autodetect_constructor_args: row["autodetect_constructor_args"],
       is_yul: row["is_yul"],
       metadata_from_verified_bytecode_twin: row["metadata_from_verified_bytecode_twin"],
-      license_type: row["license_type"],
-      certified: row["certified"],
-      is_blueprint: row["is_blueprint"],
-      language: row["language"],
+      license_type: String.to_integer(row["license_type"]),
+      certified: nil,
+      is_blueprint: row["is_blueprint"] == "TRUE",
+      language:
+        if row["language"] != "" do
+          String.to_integer(row["language"])
+        else
+          nil
+        end,
       smart_contract_additional_sources:
         Enum.filter(smart_contracts_additional_sources, fn additional_sources_row ->
           case(row["address_hash"] == additional_sources_row["address_hash"]) do
