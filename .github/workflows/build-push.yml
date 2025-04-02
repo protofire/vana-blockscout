@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Exit if wrong branch
-        if: github.ref != 'refs/heads/production'
+        if: github.ref != 'refs/heads/mainnet' || github.ref != 'refs/heads/testnet'
         run: exit 1
 
   indexer:
@@ -39,12 +39,13 @@ jobs:
       - name: Prepare image tag
         shell: bash
         run: |
+          echo "BRANCH_NAME=${GITHUB_REF##*/}" >> "$GITHUB_ENV"
           echo "IMAGE_TAG=$(git rev-parse --short "$GITHUB_SHA")" >> "$GITHUB_ENV"
 
       - name: Build and push - indexer
         run: |
-          docker build -t ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}-indexer:${{ env.IMAGE_TAG }} \
-          -t ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}-indexer:latest \
+          docker build -t ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}-indexer:${{ env.BRANCH_NAME }}-${{ env.IMAGE_TAG }} \
+          -t ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}-indexer:${{ env.BRANCH_NAME }}-latest \
           --build-arg BLOCKSCOUT_VERSION=v${{ github.event.inputs.version }} \
           --build-arg RELEASE_VERSION=${{ github.event.inputs.version }} \
           --build-arg DISABLE_WEBAPP=true \
@@ -82,12 +83,13 @@ jobs:
       - name: Prepare image tag
         shell: bash
         run: |
+          echo "BRANCH_NAME=${GITHUB_REF##*/}" >> "$GITHUB_ENV"
           echo "IMAGE_TAG=$(git rev-parse --short "$GITHUB_SHA")" >> "$GITHUB_ENV"
 
       - name: Build and push - api
         run: |
-          docker build -t ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}-api:${{ env.IMAGE_TAG }} \
-          -t ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}-api:latest \
+          docker build -t ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}-api:${{ env.BRANCH_NAME }}-${{ env.IMAGE_TAG }} \
+          -t ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}-api:${{ env.BRANCH_NAME }}-latest \
           --build-arg BLOCKSCOUT_VERSION=v${{ github.event.inputs.version }} \
           --build-arg RELEASE_VERSION=${{ github.event.inputs.version }} \
           --build-arg DISABLE_WEBAPP=true \
