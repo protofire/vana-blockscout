@@ -1,4 +1,4 @@
-name: Release for Stability
+name: Release for Berachain
 
 on:
   workflow_dispatch:
@@ -11,29 +11,28 @@ env:
 
 jobs:
   push_to_registry:
-    name: Push Docker image to Docker Hub
+    name: Push Docker image to GitHub Container Registry
     runs-on: ubuntu-latest
     env:
-      RELEASE_VERSION: 6.10.1
+      RELEASE_VERSION: 8.1.1
     steps:
       - uses: actions/checkout@v4
       - name: Setup repo
         uses: ./.github/actions/setup-repo
         id: setup
         with:
-          docker-username: ${{ secrets.DOCKER_USERNAME }}
-          docker-password: ${{ secrets.DOCKER_PASSWORD }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           docker-remote-multi-platform: true
           docker-arm-host: ${{ secrets.ARM_RUNNER_HOSTNAME }}
           docker-arm-host-key: ${{ secrets.ARM_RUNNER_KEY }}
 
-      - name: Build and push Docker image for Stability (indexer + API)
+      - name: Build and push Docker image for Ethereum (indexer + API)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./docker/Dockerfile
           push: true
-          tags: blockscout/blockscout-stability:latest, blockscout/blockscout-stability:${{ env.RELEASE_VERSION }}
+          tags: ghcr.io/blockscout/blockscout-berachain:latest, ghcr.io/blockscout/blockscout-berachain:${{ env.RELEASE_VERSION }}
           labels: ${{ steps.setup.outputs.docker-labels }}
           platforms: |
             linux/amd64
@@ -41,15 +40,15 @@ jobs:
           build-args: |
             BLOCKSCOUT_VERSION=v${{ env.RELEASE_VERSION }}
             RELEASE_VERSION=${{ env.RELEASE_VERSION }}
-            CHAIN_TYPE=stability
+            CHAIN_TYPE=berachain
 
-      - name: Build and push Docker image for Stability (indexer)
+      - name: Build and push Docker image for Ethereum (indexer)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./docker/Dockerfile
           push: true
-          tags: blockscout/blockscout-stability:${{ env.RELEASE_VERSION }}-indexer
+          tags: ghcr.io/blockscout/blockscout-berachain:${{ env.RELEASE_VERSION }}-indexer
           labels: ${{ steps.setup.outputs.docker-labels }}
           platforms: |
             linux/amd64
@@ -58,21 +57,4 @@ jobs:
             DISABLE_API=true
             BLOCKSCOUT_VERSION=v${{ env.RELEASE_VERSION }}
             RELEASE_VERSION=${{ env.RELEASE_VERSION }}
-            CHAIN_TYPE=stability
-
-      - name: Build and push Docker image for Stability (API)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./docker/Dockerfile
-          push: true
-          tags: blockscout/blockscout-stability:${{ env.RELEASE_VERSION }}-api
-          labels: ${{ steps.setup.outputs.docker-labels }}
-          platforms: |
-            linux/amd64
-            linux/arm64/v8
-          build-args: |
-            DISABLE_INDEXER=true
-            BLOCKSCOUT_VERSION=v${{ env.RELEASE_VERSION }}
-            RELEASE_VERSION=${{ env.RELEASE_VERSION }}
-            CHAIN_TYPE=stability
+            CHAIN_TYPE=berachain

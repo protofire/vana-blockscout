@@ -1,4 +1,4 @@
-name: Pre-release for Blackfort
+name: Pre-release for Berachain
 
 on:
   workflow_dispatch:
@@ -13,29 +13,28 @@ env:
 
 jobs:
   push_to_registry:
-    name: Push Docker image to Docker Hub
+    name: Push Docker image to GitHub Container Registry
     runs-on: ubuntu-latest
     env:
-      RELEASE_VERSION: 6.10.1
+      RELEASE_VERSION: 8.1.1
     steps:
       - uses: actions/checkout@v4
       - name: Setup repo
         uses: ./.github/actions/setup-repo
         id: setup
         with:
-          docker-username: ${{ secrets.DOCKER_USERNAME }}
-          docker-password: ${{ secrets.DOCKER_PASSWORD }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           docker-remote-multi-platform: true
           docker-arm-host: ${{ secrets.ARM_RUNNER_HOSTNAME }}
           docker-arm-host-key: ${{ secrets.ARM_RUNNER_KEY }}
 
-      - name: Build and push Docker image for Blackfort (indexer + API)
+      - name: Build and push Docker image for Ethereum (indexer + API)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./docker/Dockerfile
           push: true
-          tags: blockscout/blockscout-blackfort:${{ env.RELEASE_VERSION }}-alpha.${{ inputs.number }}
+          tags: ghcr.io/blockscout/blockscout-berachain:${{ env.RELEASE_VERSION }}-alpha.${{ inputs.number }}
           labels: ${{ steps.setup.outputs.docker-labels }}
           platforms: |
             linux/amd64
@@ -43,15 +42,15 @@ jobs:
           build-args: |
             BLOCKSCOUT_VERSION=v${{ env.RELEASE_VERSION }}-alpha.${{ inputs.number }}
             RELEASE_VERSION=${{ env.RELEASE_VERSION }}
-            CHAIN_TYPE=blackfort
+            CHAIN_TYPE=berachain
 
-      - name: Build and push Docker image for Blackfort (indexer)
+      - name: Build and push Docker image for Ethereum (indexer)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./docker/Dockerfile
           push: true
-          tags: blockscout/blockscout-blackfort:${{ env.RELEASE_VERSION }}-alpha.${{ inputs.number }}-indexer
+          tags: ghcr.io/blockscout/blockscout-berachain:${{ env.RELEASE_VERSION }}-alpha.${{ inputs.number }}-indexer
           labels: ${{ steps.setup.outputs.docker-labels }}
           platforms: |
             linux/amd64
@@ -60,21 +59,4 @@ jobs:
             DISABLE_API=true
             BLOCKSCOUT_VERSION=v${{ env.RELEASE_VERSION }}-alpha.${{ inputs.number }}
             RELEASE_VERSION=${{ env.RELEASE_VERSION }}
-            CHAIN_TYPE=blackfort
-
-      - name: Build and push Docker image for Blackfort (API)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./docker/Dockerfile
-          push: true
-          tags: blockscout/blockscout-blackfort:${{ env.RELEASE_VERSION }}-alpha.${{ inputs.number }}-api
-          labels: ${{ steps.setup.outputs.docker-labels }}
-          platforms: |
-            linux/amd64
-            linux/arm64/v8
-          build-args: |
-            DISABLE_INDEXER=true
-            BLOCKSCOUT_VERSION=v${{ env.RELEASE_VERSION }}-alpha.${{ inputs.number }}
-            RELEASE_VERSION=${{ env.RELEASE_VERSION }}
-            CHAIN_TYPE=blackfort
+            CHAIN_TYPE=berachain
