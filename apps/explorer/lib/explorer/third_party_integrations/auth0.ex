@@ -9,6 +9,7 @@ defmodule Explorer.ThirdPartyIntegrations.Auth0 do
   alias Explorer.ThirdPartyIntegrations.Auth0.Internal
   alias Ueberauth.Auth
   alias Ueberauth.Strategy.Auth0.OAuth
+  alias OAuth2.AccessToken
 
   @request_siwe_message "Request Sign in with Ethereum message via /api/account/v2/siwe_message"
   @wrong_nonce "Wrong nonce in message"
