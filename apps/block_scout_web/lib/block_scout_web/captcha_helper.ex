@@ -4,7 +4,7 @@ defmodule BlockScoutWeb.CaptchaHelper do
   """
   require Logger
 
-  alias Explorer.Helper
+  alias Explorer.{Helper, HttpClient}
 
   @type token_scope() :: :token_instance_refetch_metadata
 
@@ -107,13 +107,12 @@ defmodule BlockScoutWeb.CaptchaHelper do
     headers = [{"Content-type", "application/x-www-form-urlencoded"}]
 
     case !Application.get_env(:block_scout_web, :recaptcha)[:is_disabled] &&
-           Application.get_env(:block_scout_web, :http_adapter).post(
+           HttpClient.post(
              "https://www.google.com/recaptcha/api/siteverify",
              body,
-             headers,
-             []
+             headers
            ) do
-      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+      {:ok, %{status_code: 200, body: body}} ->
         body |> Jason.decode!() |> success?()
 
       false ->
@@ -127,7 +126,7 @@ defmodule BlockScoutWeb.CaptchaHelper do
 
   # v3 case
   defp success?(%{"success" => true, "score" => score, "hostname" => hostname}) do
-    unless Helper.get_app_host() == hostname do
+    if Helper.get_app_host() != hostname do
       Logger.warning("reCAPTCHA v3 Hostname mismatch: #{inspect(hostname)} != #{inspect(Helper.get_app_host())}")
     end
 
@@ -141,7 +140,7 @@ defmodule BlockScoutWeb.CaptchaHelper do
 
   # v2 case
   defp success?(%{"success" => true, "hostname" => hostname}) do
-    unless Helper.get_app_host() == hostname do
+    if Helper.get_app_host() != hostname do
       Logger.warning("reCAPTCHA v2 Hostname mismatch: #{inspect(hostname)} != #{inspect(Helper.get_app_host())}")
     end
 
