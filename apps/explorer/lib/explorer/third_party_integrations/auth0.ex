@@ -4,21 +4,16 @@ defmodule Explorer.ThirdPartyIntegrations.Auth0 do
   """
   require Logger
 
+  alias Explorer.{Account, Helper, HttpClient}
   alias Explorer.Account.Identity
-  alias Explorer.{Account, Helper, Repo}
-  alias Explorer.Chain.Address
-  alias OAuth2.{AccessToken, Client}
+  alias Explorer.ThirdPartyIntegrations.Auth0.Internal
   alias Ueberauth.Auth
-  alias Ueberauth.Strategy.Auth0
   alias Ueberauth.Strategy.Auth0.OAuth
-
-  @redis_key "auth0"
+  alias OAuth2.AccessToken
 
   @request_siwe_message "Request Sign in with Ethereum message via /api/account/v2/siwe_message"
   @wrong_nonce "Wrong nonce in message"
   @misconfiguration_detected "Misconfiguration detected, please contact support."
-  @disabled_otp_error_description "Grant type 'http://auth0.com/oauth/grant-type/passwordless/otp' not allowed for the client."
-  @users_path "/api/v2/users"
   @json_content_type [{"Content-type", "application/json"}]
 
   @doc """
@@ -33,7 +28,7 @@ defmodule Explorer.ThirdPartyIntegrations.Auth0 do
   """
   @spec get_m2m_jwt() :: nil | String.t()
   def get_m2m_jwt do
-    get_m2m_jwt_inner(Redix.command(:redix, ["GET", cookie_key(@redis_key)]))
+    get_m2m_jwt_inner(Redix.command(:redix, ["GET", Internal.redis_key()]))
   end
 
   def get_m2m_jwt_inner({:ok, token}) when not is_nil(token), do: token
@@ -48,8 +43,8 @@ defmodule Explorer.ThirdPartyIntegrations.Auth0 do
       "grant_type" => "client_credentials"
     }
 
-    case HTTPoison.post("https://#{config[:domain]}/oauth/token", Jason.encode!(body), @json_content_type, []) do
-      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+    case HttpClient.post("https://#{config[:domain]}/oauth/token", Jason.encode!(body), @json_content_type) do
+      {:ok, %{status_code: 200, body: body}} ->
         case Jason.decode!(body) do
           %{"access_token" => token, "expires_in" => ttl} ->
             cache_token(token, ttl - 1)
@@ -87,7 +82,7 @@ defmodule Explorer.ThirdPartyIntegrations.Auth0 do
   end
 
   defp cache_token(token, ttl) do
-    Redix.command(:redix, ["SET", cookie_key(@redis_key), token, "EX", ttl])
+    Redix.command(:redix, ["SET", Internal.redis_key(), token, "EX", ttl])
     token
   end
 
@@ -108,11 +103,11 @@ defmodule Explorer.ThirdPartyIntegrations.Auth0 do
   """
   @spec send_otp_for_linking(String.t(), String.t()) :: :error | :ok | {:error, String.t()}
   def send_otp_for_linking(email, ip) do
-    case find_users_by_email(email) do
+    case Internal.find_users_by_email(email) do
       {:ok, []} ->
-        do_send_otp(email, ip)
+        Internal.send_otp(email, ip)
 
-      {:ok, users} when is_list(users) and length(users) > 0 ->
+      {:ok, users} when is_list(users) and users !== [] ->
         {:error, "Account with this email already exists"}
 
       error ->
@@ -138,12 +133,12 @@ defmodule Explorer.ThirdPartyIntegrations.Auth0 do
   """
   @spec send_otp(String.t(), String.t()) :: :error | :ok | {:interval, integer()}
   def send_otp(email, ip) do
-    case find_users_by_email(email) do
+    case Internal.find_users_by_email(email) do
       {:ok, []} ->
-        do_send_otp(email, ip)
+        Internal.send_otp(email, ip)
 
       {:ok, [user | _]} ->
-        handle_existing_user(user, email, ip)
+        Internal.handle_existing_user(user, email, ip)
 
       error ->
         error
@@ -169,14 +164,13 @@ defmodule Explorer.ThirdPartyIntegrations.Auth0 do
   """
   @spec link_email(Identity.session(), String.t(), String.t(), String.t()) ::
           :error | {:ok, Auth.t()} | {:error, String.t()}
-  def link_email(%{uid: primary_user_id, email: nil}, email, otp, ip) do
-    case find_users_by_email(email) do
+  def link_email(%{uid: user_id_without_email, email: nil}, email, otp, ip) do
+    case Internal.find_users_by_email(email) do
       {:ok, []} ->
-        with {:ok, token} <- confirm_otp(email, otp, ip),
-             {:ok, %{"sub" => "email|" <> identity_id}} <- get_user_from_token(token),
-             :ok <- link_users(primary_user_id, identity_id, "email"),
-             {:ok, user} <- update_user_email(primary_user_id, email) do
-          {:ok, create_auth(user)}
+        with {:ok, token} <- Internal.confirm_otp(email, otp, ip),
+             {:ok, %{"sub" => user_id_with_email}} <- Internal.get_user_from_token(token),
+             {:ok, user} <- Internal.link_email(user_id_without_email, user_id_with_email, email) do
+          {:ok, Internal.create_auth(user)}
         end
 
       {:ok, users} when is_list(users) ->
@@ -207,14 +201,15 @@ defmodule Explorer.ThirdPartyIntegrations.Auth0 do
   """
   @spec confirm_otp_and_get_auth(String.t(), String.t(), String.t()) :: :error | {:error, String.t()} | {:ok, Auth.t()}
   def confirm_otp_and_get_auth(email, otp, ip) do
-    with {:ok, token} <- confirm_otp(email, otp, ip),
-         {:ok, %{"sub" => user_id} = user} <- get_user_from_token(token),
-         {:search, _user_from_token, {:ok, user}} <- {:search, user, get_user_by_id(user_id)} do
-      maybe_link_email_and_get_auth(user)
+    with {:ok, token} <- Internal.confirm_otp(email, otp, ip),
+         {:ok, %{"sub" => user_id} = user} <- Internal.get_user_from_token(token),
+         {:search, _user_from_token, {:ok, user}} <- {:search, user, Internal.get_user_by_id(user_id)},
+         {:ok, user} <- Internal.process_email_user(user) do
+      {:ok, Internal.create_auth(user)}
     else
       # newly created user, sometimes just created user with otp does not appear in the search
-      {:search, %{"sub" => user_id} = user_from_token, {:error, "User not found"}} ->
-        {:ok, user_from_token |> Map.put("user_id", user_id) |> create_auth()}
+      {:search, %{"sub" => _user_id} = user_from_token, {:error, "User not found"}} ->
+        Internal.handle_not_found_just_created_email_user(user_from_token)
 
       err ->
         err
@@ -235,18 +230,8 @@ defmodule Explorer.ThirdPartyIntegrations.Auth0 do
   - `{:new, Identity.session()}` if the address hash was added to the session
   """
   @spec update_session_with_address_hash(Identity.session()) :: {:old, Identity.session()} | {:new, Identity.session()}
-  def update_session_with_address_hash(%{address_hash: _} = session), do: {:old, session}
-
-  def update_session_with_address_hash(%{uid: user_id} = session) do
-    case get_user_by_id(user_id) do
-      {:ok, user} ->
-        {:new, Map.put(session, :address_hash, user |> create_auth() |> Identity.address_hash_from_auth())}
-
-      error ->
-        Logger.error("Error when updating session with address hash: #{inspect(error)}")
-        {:old, session}
-    end
-  end
+  def update_session_with_address_hash(session),
+    do: Internal.update_session_with_address_hash(session)
 
   @doc """
   Generates a Sign-In with Ethereum (SIWE) message for the given address.
@@ -280,7 +265,7 @@ defmodule Explorer.ThirdPartyIntegrations.Auth0 do
       expiration_time: DateTime.utc_now() |> DateTime.add(300, :second) |> DateTime.to_iso8601()
     }
 
-    with {:cache, {:ok, _nonce}} <- {:cache, cache_nonce_for_address(nonce, address)},
+    with {:cache, {:ok, _nonce}} <- {:cache, Internal.cache_nonce_for_address(nonce, address)},
          {:message, {:ok, message}} <- {:message, Siwe.to_str(message)} do
       {:ok, message}
     else
@@ -315,10 +300,10 @@ defmodule Explorer.ThirdPartyIntegrations.Auth0 do
   def link_address(user_id, message, signature) do
     with {:signature, {:ok, %{nonce: nonce, address: address}}} <-
            {:signature, message |> String.trim() |> Siwe.parse_if_valid(signature)},
-         {:nonce, {:ok, ^nonce}} <- {:nonce, get_nonce_for_address(address)},
-         {:user, {:ok, []}} <- {:user, find_users_by_web3_address(address)},
-         {:ok, user} <- update_user_with_web3_address(user_id, address) do
-      {:ok, create_auth(user)}
+         {:nonce, {:ok, ^nonce}} <- {:nonce, Internal.get_nonce_for_address(address)},
+         {:user, {:ok, []}} <- {:user, Internal.find_users_by_web3_address(address)},
+         {:ok, user} <- Internal.update_user_with_web3_address(user_id, address) do
+      {:ok, Internal.create_auth(user)}
     else
       {:nonce, {:ok, _}} ->
         {:error, @wrong_nonce}
@@ -359,9 +344,9 @@ defmodule Explorer.ThirdPartyIntegrations.Auth0 do
   def get_auth_with_web3(message, signature) do
     with {:signature, {:ok, %{nonce: nonce, address: address}}} <-
            {:signature, message |> String.trim() |> Siwe.parse_if_valid(signature)},
-         {:nonce, {:ok, ^nonce}} <- {:nonce, get_nonce_for_address(address)},
-         {:user, {:ok, user}} <- {:user, find_or_create_web3_user(address, signature)} do
-      {:ok, create_auth(user)}
+         {:nonce, {:ok, ^nonce}} <- {:nonce, Internal.get_nonce_for_address(address)},
+         {:user, {:ok, user}} <- {:user, Internal.process_web3_user(address, signature)} do
+      {:ok, Internal.create_auth(user)}
     else
       {:nonce, {:ok, nil}} ->
         {:error, @request_siwe_message}
