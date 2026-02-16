@@ -9,6 +9,7 @@ defmodule BlockScoutWeb.Plug.Logger do
 
   require Logger
   alias BlockScoutWeb.API.RPC.RPCTranslator
+  alias BlockScoutWeb.AccessHelper
   alias Plug.Conn
   @behaviour Plug
 
@@ -34,7 +35,7 @@ defmodule BlockScoutWeb.Plug.Logger do
           [connection_type(conn), ?\s, status, " in ", formatted_diff(diff), " on ", conn.method, ?\s, endpoint(conn)]
         end,
         Keyword.merge(
-          [duration: diff, status: status, unit: "microsecond", endpoint: endpoint(conn), method: conn.method],
+          [duration: diff, status: status, unit: "microsecond", endpoint: endpoint(conn), method: conn.method, client_ip: AccessHelper.conn_to_ip_string(conn)],
           opts
         )
       )
