@@ -6,6 +6,8 @@ defmodule Explorer.Chain.Address.CoinBalance do
 
   use Explorer.Schema
 
+  require Logger
+
   alias Explorer.{Chain, PagingOptions, Repo}
   alias Explorer.Chain.{Address, Block, Hash, InternalTransaction, Transaction, Wei}
   alias Explorer.Chain.Address.CoinBalance
@@ -257,27 +259,36 @@ defmodule Explorer.Chain.Address.CoinBalance do
 
   # Here we fetch from DB one transaction per one coin balance. It's much more faster than LEFT OUTER JOIN which was before.
   defp preload_transactions(balances, options) do
+    Logger.info("coin_balance: preload_transactions started for #{length(balances)} balances")
+    start_time = System.monotonic_time(:millisecond)
+
     tasks =
       Enum.map(balances, fn balance ->
         Task.async(fn -> preload_transactions_task(balance, options) end)
       end)
 
-    tasks
-    |> Task.yield_many(120_000)
-    |> Enum.zip(balances)
-    |> Enum.map(fn {{task, res}, balance} ->
-      case res do
-        {:ok, hash} ->
-          put_transaction_hash(hash, balance)
+    result =
+      tasks
+      |> Task.yield_many(120_000)
+      |> Enum.zip(balances)
+      |> Enum.map(fn {{task, res}, balance} ->
+        case res do
+          {:ok, hash} ->
+            put_transaction_hash(hash, balance)
 
-        {:exit, _reason} ->
-          balance
+          {:exit, _reason} ->
+            balance
 
-        nil ->
-          Task.shutdown(task, :brutal_kill)
-          balance
-      end
-    end)
+          nil ->
+            Task.shutdown(task, :brutal_kill)
+            balance
+        end
+      end)
+
+    elapsed = System.monotonic_time(:millisecond) - start_time
+    Logger.info("coin_balance: preload_transactions finished in #{elapsed}ms")
+
+    result
   end
 
   defp preload_transactions_task(balance, options) do
@@ -314,6 +325,7 @@ defmodule Explorer.Chain.Address.CoinBalance do
       [internal_transaction],
       internal_transaction.block_number == ^balance.block_number and
         internal_transaction.type in ~w(call create create2 selfdestruct)a and
+        (internal_transaction.type != ^"call" or internal_transaction.index > ^0) and
         (is_nil(internal_transaction.call_type) or internal_transaction.call_type == :call) and
         internal_transaction.value > ^0 and is_nil(internal_transaction.error) and
         (internal_transaction.to_address_hash == ^balance.address_hash or
