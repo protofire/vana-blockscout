@@ -6,8 +6,6 @@ defmodule Explorer.Chain.Address.CoinBalance do
 
   use Explorer.Schema
 
-  require Logger
-
   alias Explorer.{Chain, PagingOptions, Repo}
   alias Explorer.Chain.{Address, Block, Hash, InternalTransaction, Transaction, Wei}
   alias Explorer.Chain.Address.CoinBalance
@@ -259,17 +257,12 @@ defmodule Explorer.Chain.Address.CoinBalance do
 
   # Here we fetch from DB one transaction per one coin balance. It's much more faster than LEFT OUTER JOIN which was before.
   defp preload_transactions(balances, options) do
-    Logger.info("coin_balance_preload_transactions: started for #{length(balances)} balances")
     start_time = System.monotonic_time(:millisecond)
-
-    Logger.info("coin_balance_preload_transactions: started async tasks")
 
     tasks =
       Enum.map(balances, fn balance ->
         Task.async(fn -> preload_transactions_task(balance, options) end)
       end)
-
-    Logger.info("coin_balance_preload_transactions: ended async tasks")
 
     result =
       tasks
@@ -278,22 +271,18 @@ defmodule Explorer.Chain.Address.CoinBalance do
       |> Enum.map(fn {{task, res}, balance} ->
         case res do
           {:ok, hash} ->
-            Logger.info("coin_balance_preload_transactions: task finished")
             put_transaction_hash(hash, balance)
 
           {:exit, reason} ->
-            Logger.info("coin_balance_preload_transactions: task exited with reason -> #{reason}")
             balance
 
           nil ->
-            Logger.info("coin_balance_preload_transactions: task was brutally killed")
             Task.shutdown(task, :brutal_kill)
             balance
         end
       end)
 
     elapsed = System.monotonic_time(:millisecond) - start_time
-    Logger.info("coin_balance: preload_transactions finished in #{elapsed}ms")
 
     result
   end
@@ -314,8 +303,6 @@ defmodule Explorer.Chain.Address.CoinBalance do
   end
 
   defp preload_transaction_query(balance) do
-    Logger.info("coin_balance_preload_transactions: preload transactions start")
-
     Transaction
     |> where(
       [transaction],
@@ -329,8 +316,6 @@ defmodule Explorer.Chain.Address.CoinBalance do
   end
 
   defp preload_internal_transaction_query(balance) do
-    Logger.info("coin_balance_preload_transactions: preload internal txs start")
-
     InternalTransaction
     |> where(
       [internal_transaction],
@@ -386,7 +371,6 @@ defmodule Explorer.Chain.Address.CoinBalance do
   defp page_coin_balances(query, %PagingOptions{key: nil}), do: query
 
   defp page_coin_balances(query, %PagingOptions{key: {block_number}}) do
-    Logger.info("page coin balances")
     where(query, [coin_balance], coin_balance.block_number < ^block_number)
   end
 
@@ -421,8 +405,6 @@ defmodule Explorer.Chain.Address.CoinBalance do
 
   @doc false
   def fetch_coin_balances(address_hash, %PagingOptions{page_size: page_size}) do
-    Logger.info("fetch coin balances")
-
     query =
       from(
         cb in CoinBalance,

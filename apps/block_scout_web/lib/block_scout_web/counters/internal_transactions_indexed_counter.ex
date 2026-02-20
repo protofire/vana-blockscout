@@ -25,7 +25,7 @@ defmodule BlockScoutWeb.Counters.InternalTransactionsIndexedCounter do
   @impl true
   def init(args) do
     if @enabled do
-      Task.start_link(&calculate_internal_transactions_indexed/0)
+      Process.send_after(self(), :calculate_internal_transactions_indexed, :timer.seconds(2))
 
       schedule_next_consolidation()
     end
