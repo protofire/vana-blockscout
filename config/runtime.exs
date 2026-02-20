@@ -1662,15 +1662,19 @@ config :indexer, Indexer.Fetcher.Zilliqa.ScillaSmartContracts.Supervisor,
 config :indexer, Indexer.Fetcher.Zilliqa.Zrc2Tokens.Supervisor, disabled?: ConfigHelper.chain_type() != :zilliqa
 
 config :libcluster,
-  topologies: [
-    k8sDNS: [
-      strategy: Cluster.Strategy.Kubernetes.DNS,
-      config: [
-        service: System.get_env("K8S_SERVICE"),
-        application_name: "blockscout"
-      ]
-    ]
-  ]
+  topologies:
+    if(System.get_env("K8S_SERVICE"),
+      do: [
+        k8sDNS: [
+          strategy: Cluster.Strategy.Kubernetes.DNS,
+          config: [
+            service: System.get_env("K8S_SERVICE"),
+            application_name: "blockscout"
+          ]
+        ]
+      ],
+      else: []
+    )
 
 Code.require_file("#{config_env()}.exs", "config/runtime")
 

@@ -25,7 +25,7 @@ defmodule BlockScoutWeb.Counters.BlocksIndexedCounter do
   @impl true
   def init(args) do
     if @enabled do
-      Task.start_link(&calculate_blocks_indexed_and_broadcast/0)
+      Process.send_after(self(), :calculate_blocks_indexed_and_broadcast, :timer.seconds(2))
 
       schedule_next_consolidation()
     end
