@@ -262,27 +262,22 @@ defmodule Explorer.Chain.Address.CoinBalance do
         Task.async(fn -> preload_transactions_task(balance, options) end)
       end)
 
-    result =
-      tasks
-      |> Task.yield_many(120_000)
-      |> Enum.zip(balances)
-      |> Enum.map(fn {{task, res}, balance} ->
-        case res do
-          {:ok, hash} ->
-            put_transaction_hash(hash, balance)
+    tasks
+    |> Task.yield_many(120_000)
+    |> Enum.zip(balances)
+    |> Enum.map(fn {{task, res}, balance} ->
+      case res do
+        {:ok, hash} ->
+          put_transaction_hash(hash, balance)
 
-          {:exit, _reason} ->
-            balance
+        {:exit, _reason} ->
+          balance
 
-          nil ->
-            Task.shutdown(task, :brutal_kill)
-            balance
-        end
-      end)
-
-    elapsed = System.monotonic_time(:millisecond) - start_time
-
-    result
+        nil ->
+          Task.shutdown(task, :brutal_kill)
+          balance
+      end
+    end)
   end
 
   defp preload_transactions_task(balance, options) do
