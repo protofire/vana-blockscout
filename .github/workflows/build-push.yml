@@ -1,4 +1,8 @@
 on:
+  push:
+    branches:
+      - mainnet
+      - testnet*
   workflow_dispatch:
     inputs:
       version:
@@ -11,6 +15,7 @@ name: Docker build and push
 env:
   IMAGE_REGISTRY: ${{ secrets.PROD_OVH_REGISTRY_URL }}
   IMAGE_REPOSITORY: blockscout/backend
+  BACKEND_VERSION: ${{ github.event.inputs.version || '9.3.2' }}
 
 jobs:
   check:
@@ -46,8 +51,8 @@ jobs:
         run: |
           docker build -t ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}-indexer:${{ env.BRANCH_NAME }}-${{ env.IMAGE_TAG }} \
           -t ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}-indexer:${{ env.BRANCH_NAME }}-latest \
-          --build-arg BLOCKSCOUT_VERSION=v${{ github.event.inputs.version }} \
-          --build-arg RELEASE_VERSION=${{ github.event.inputs.version }} \
+          --build-arg BLOCKSCOUT_VERSION=v${{ env.BACKEND_VERSION }} \
+          --build-arg RELEASE_VERSION=${{ env.BACKEND_VERSION }} \
           --build-arg DISABLE_WEBAPP=true \
           --build-arg DISABLE_API=true \
           --build-arg ADMIN_PANEL_ENABLED=false \
@@ -90,8 +95,8 @@ jobs:
         run: |
           docker build -t ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}-api:${{ env.BRANCH_NAME }}-${{ env.IMAGE_TAG }} \
           -t ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}-api:${{ env.BRANCH_NAME }}-latest \
-          --build-arg BLOCKSCOUT_VERSION=v${{ github.event.inputs.version }} \
-          --build-arg RELEASE_VERSION=${{ github.event.inputs.version }} \
+          --build-arg BLOCKSCOUT_VERSION=v${{ env.BACKEND_VERSION }} \
+          --build-arg RELEASE_VERSION=${{ env.BACKEND_VERSION }} \
           --build-arg DISABLE_WEBAPP=true \
           --build-arg DISABLE_INDEXER=true \
           --build-arg ADMIN_PANEL_ENABLED=false \
