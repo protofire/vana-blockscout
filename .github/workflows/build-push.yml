@@ -7,7 +7,7 @@ on:
     inputs:
       version:
         description: 'Backend version'
-        default: '9.3.2'
+        default: '10.2.6'
         required: true
 
 name: Docker build and push
@@ -15,7 +15,7 @@ name: Docker build and push
 env:
   IMAGE_REGISTRY: ${{ secrets.PROD_OVH_REGISTRY_URL }}
   IMAGE_REPOSITORY: blockscout/backend
-  BACKEND_VERSION: ${{ github.event.inputs.version || '9.3.2' }}
+  BACKEND_VERSION: ${{ github.event.inputs.version || '10.2.6' }}
 
 jobs:
   check:
